@@ -1,0 +1,158 @@
+# docker-compose.yml — Stack "Inventario del Laboratorio" (Reto 5: Contenedorización con Docker)
+#
+#   docker-cli ──HTTPS:8443──► [proxy] ──red frontend──► [app] ──red backend (internal)──► [db]
+#
+# - Solo "proxy" publica un puerto, y únicamente en la IP de la red del proyecto (BIND_IP).
+# - "db" no publica puertos y vive en una red interna sin salida: no es alcanzable desde fuera.
+# - Datos de PostgreSQL en un VOLUMEN NOMBRADO (ver comparación volumen vs. bind mount en el informe).
+# - Cada contenedor tiene límites de CPU, memoria y procesos, y corre con privilegios mínimos.
+name: inventario-lab
+
+x-seguridad: &seguridad
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+  proxy:
+    <<: *seguridad
+    image: nginxinc/nginx-unprivileged:1.29-alpine
+    container_name: inv-proxy
+    ports:
+      - "${BIND_IP:?Defina BIND_IP en .env}:${WEB_PORT:-8443}:8443"
+    volumes:
+      - ./proxy/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./proxy/proxy_headers.inc:/etc/nginx/conf.d/proxy_headers.inc:ro
+      - ./proxy/certs/servidor.crt:/etc/nginx/certs/servidor.crt:ro
+      - ./proxy/certs/servidor.key:/etc/nginx/certs/servidor.key:ro
+    environment:
+      NGINX_ENTRYPOINT_QUIET_LOGS: "1"
+    networks:
+      - frontend
+    depends_on:
+      app:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8443 || wget -q -O /dev/null http://127.0.0.1:8081/salud || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+          pids: 100
+    memswap_limit: 64M            # igual a memory: sin swap extra
+
+  app:
+    <<: *seguridad
+    build: ./app
+    image: inventario-lab/app:1.0
+    container_name: inv-app
+    environment:
+      DB_HOST: db
+      DB_NAME: inventario
+      DB_USER: inv_app
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+      FLASK_SECRET_FILE: /run/secrets/flask_secret
+      ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      CONSULTOR_PASSWORD_FILE: /run/secrets/consultor_password
+    secrets:
+      - db_app_password
+      - flask_secret
+      - admin_password
+      - consultor_password
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+          pids: 200
+        reservations:
+          memory: 64M
+    memswap_limit: 256M           # sin esto Docker permite 256 MB extra de swap y no hay OOM
+
+  db:
+    <<: *seguridad
+    image: postgres:17-alpine
+    container_name: inv-db
+    environment:
+      POSTGRES_DB: inventario
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+    secrets:
+      - db_admin_password
+      - db_app_password
+      - db_lectura_password
+    volumes:
+      - datos_pg:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend
+    # La imagen necesita estas capacidades para preparar el directorio de datos y bajar a usuario postgres
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d inventario -h 127.0.0.1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 200
+        reservations:
+          memory: 128M
+    memswap_limit: 512M
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true   # sin salida a Internet y sin posibilidad de publicar puertos
+
+volumes:
+  datos_pg:
+    name: inventario_datos_pg   # nombre fijo: sobrevive a "docker compose down" (sin -v)
+
+secrets:
+  db_admin_password:
+    file: ./secrets/db_admin_password.txt
+  db_app_password:
+    file: ./secrets/db_app_password.txt
+  db_lectura_password:
+    file: ./secrets/db_lectura_password.txt
+  flask_secret:
+    file: ./secrets/flask_secret.txt
+  admin_password:
+    file: ./secrets/admin_password.txt
+  consultor_password:
+    file: ./secrets/consultor_password.txt

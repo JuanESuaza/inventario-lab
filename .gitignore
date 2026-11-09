@@ -1,0 +1,8 @@
+# Nunca subir secretos, llaves ni respaldos
+secrets/*
+!secrets/.gitkeep
+proxy/certs/*
+!proxy/certs/.gitkeep
+backups/*
+!backups/.gitkeep
+.env
