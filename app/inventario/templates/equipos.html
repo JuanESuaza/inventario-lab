@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block contenido %}
+<h1>Equipos</h1>
+<form method="get" class="buscar">
+  <input name="q" value="{{ q }}" placeholder="Buscar por código, nombre o ubicación">
+  <button type="submit">Buscar</button>
+</form>
+<table>
+  <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Ubicación</th><th>Estado</th><th>Responsable</th><th>Actualizado</th>{% if rol == 'administrador' %}<th></th>{% endif %}</tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr>
+      <td class="codigo">{{ f[1] }}</td><td>{{ f[2] }}</td><td>{{ f[3] }}</td><td>{{ f[4] }}</td>
+      <td><span class="estado {{ f[5] }}">{{ f[5] }}</span></td><td>{{ f[6] or '—' }}</td>
+      <td>{{ f[7].strftime('%Y-%m-%d %H:%M') }}</td>
+      {% if rol == 'administrador' %}
+      <td class="acciones">
+        <a href="{{ url_for('equipo_editar', id_equipo=f[0]) }}">Editar</a>
+        <form method="post" action="{{ url_for('equipo_eliminar', id_equipo=f[0]) }}" class="enlinea">
+          <input type="hidden" name="csrf" value="{{ csrf() }}">
+          <button type="submit" class="peligro">Eliminar</button>
+        </form>
+      </td>
+      {% endif %}
+    </tr>
+  {% else %}
+    <tr><td colspan="8">No hay equipos que coincidan.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="nota">{{ filas|length }} equipo(s).</p>
+{% endblock %}

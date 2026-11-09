@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block contenido %}
+<h1>Auditoría</h1>
+<table>
+  <thead><tr><th>Momento</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr><td>{{ f[0].strftime('%Y-%m-%d %H:%M:%S') }}</td><td>{{ f[1] }}</td><td>{{ f[2] }}</td><td>{{ f[3] or '' }}</td><td>{{ f[4] }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
