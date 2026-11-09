@@ -1,6 +1,6 @@
-# Inventario del Laboratorio — Reto 5: Contenedorización de servicios (Docker)
+# Inventario del Laboratorio: Contenedorización de servicios (Docker)
 
-Sistemas Operacionales (12997) · Universidad El Bosque · 2026-2 · Docente: Ing. Samuel Galindo Pinzón
+
 Equipo: David Felipe Bejarano Montes · Oscar Samuel Oviedo Montealegre · Juan Esteban Suaza Martinez · Jhoan Daniel Bautista
 
 Aplicación web (Flask + gunicorn) para el inventario de un laboratorio, desplegada con **Docker Compose**
